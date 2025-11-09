@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Ranking Tool</title>
+    <style>
+        /* --- Basic Setup --- */
+        :root {
+            --primary-color: #0052cc;
+            --light-primary-color: #deebff;
+            --border-color: #dfe1e6;
+            --card-bg: #ffffff;
+            --body-bg: #f4f7f6;
+            --text-color: #172b4d;
+            --text-light: #5e6c84;
+            --shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--body-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        
+        /* --- Layout --- */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 3fr 7fr; /* 3 parts for form, 7 for results */
+            gap: 24px;
+        }
+        .form-section, .results-section {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        header {
+            grid-column: 1 / -1; /* Make header span both columns */
+            margin-bottom: 10px;
+        }
+        header h1 {
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        /* --- Form Elements --- */
+        .form-section h2 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        textarea, input[type="text"] {
+            width: 95%;
+            padding: 10px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+            font-size: 14px;
+        }
+        textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #0041a3; /* Darker blue on hover */
+        }
+        
+        /* --- Result Items (The new clickable cards) --- */
+        .results-section h2 {
+            margin-top: 0;
+        }
+        
+        /* This is the new link wrapper */
+        .result-link {
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .result-item {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            padding: 16px;
+            background: var(--card-bg);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .result-link:hover .result-item {
+            box-shadow: 0 4px 12px rgba(0, 82, 204, 0.2);
+            border-color: var(--primary-color);
+        }
+
+        .result-item h3 {
+            margin: 0 0 12px 0;
+            color: var(--primary-color);
+        }
+        .score-bar {
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 8px;
+            margin-bottom: 10px;
+        }
+        .score-bar-inner {
+            background: var(--primary-color);
+            height: 100%;
+        }
+        .score-details {
+            font-size: 0.9em;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <header>
+            <h1>Resume Ranking Tool</h1>
+        </header>
+
+        <div class="form-section">
+            <h2>Recruiter Requirements</h2>
+            <form action="/" method="POST">
+                
+                <div class="form-group">
+                    <label for="job_description">1. Job Description (for "Agent" matching)</label>
+                    <textarea id="job_description" name="job_description" placeholder="Paste the full job description here...">{{ job_description or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="requirements">2. Specific Requirements (comma-separated)</label>
+                    <input type="text" id="requirements" name="requirements" placeholder="e.g., Python, SQL, B.Tech" value="{{ requirements or '' }}">
+                </div>
+
+                <div class="form-group weights">
+                    <label for="keyword_weight">Keyword Weight: <span id="kw_val">{{ kw_weight }}</span>%</label>
+                    <input type="range" id="keyword_weight" name="keyword_weight" min="0" max="100" value="{{ kw_weight }}" oninput="kw_val.innerText = this.value">
+                    
+                    <label for="semantic_weight">"Agent" (Semantic) Weight: <span id="sem_val">{{ sem_weight }}</span>%</label>
+                    <input type="range" id="semantic_weight" name="semantic_weight" min="0" max="100" value="{{ sem_weight }}" oninput="sem_val.innerText = this.value">
+                </div>
+
+                <button type="submit">Rank Resumes</button>
+            </form>
+        </div>
+        
+        <div class="results-section">
+            <h2>Ranked Resumes</h2>
+            {% if results %}
+                <p>Found and ranked {{ results|length }} resumes.</p>
+                
+                {% for res in results %}
+                    <a href="{{ url_for('get_resume', filename=res.file_name) }}" target="_blank" class="result-link">
+                        <div class="result-item">
+                            <h3>{{ res.file_name }} (Overall: {{ res.final_score }}%)</h3>
+                            
+                            <div class="score-bar">
+                                <div class="score-bar-inner" style="width: {{ res.final_score }}%;"></div>
+                            </div>
+                            
+                            <div class="score-details">
+                                Keyword Score: {{ res.keyword_score }}% | "Agent" Score: {{ res.semantic_score }}%
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+
+            {% else %}
+                <p>No results to display. Fill out the form to rank your resumes.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</body>
+</html>
